@@ -55,12 +55,9 @@
     width: 56px; height: 56px; border-radius: 6px;
     display: grid; place-items: center;
     background: var(--c); color: #fff;
-    font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+    font-size: 26px; font-weight: 800; line-height: 1;
     box-shadow: inset 0 -4px 0 rgba(0,0,0,.22);
   }
-  .key[data-len="2"] { font-size: 22px; }
-  .key[data-len="3"] { font-size: 17px; }
-  .key[data-len="4"] { font-size: 14px; }
   .name { display: block; font-weight: 600; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
   .desc { display: block; color: var(--muted); font-size: 13.5px; margin-top: 2px; }
 
@@ -76,10 +73,7 @@
     .swatch { display: inline-block; margin: 0; }
     .tiles { grid-template-columns: 1fr; gap: 8px; }
     .tile { min-height: 0; padding: 10px; grid-template-columns: 44px 1fr; gap: 12px; align-items: center; }
-    .key { width: 44px; height: 44px; }
-    .key[data-len="2"] { font-size: 17px; }
-    .key[data-len="3"] { font-size: 14px; }
-    .key[data-len="4"] { font-size: 11px; }
+    .key { width: 44px; height: 44px; font-size: 21px; }
   }
 </style>
 </head>
@@ -99,7 +93,8 @@
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIT65NnLgmJ3cAl8dKg37VSyhKMSZ5zB_GwR7Lzhgglu9iRYzW02bYiscUHfOy_dxsyKX07ArG3_kv/pub?gid=0&single=true&output=csv";
 const SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/1epJqaNlZnah3IsGmD4GG87eLeFnmYCue4gJryqFJmzQ/edit";
 // Màu cho từng nhóm, theo thứ tự nhóm xuất hiện trong sheet
-const GROUP_COLORS = ["#1C2B4A", "#1F6F6B", "#9B3D2E", "#5C6B2E", "#5B3A6B", "#2F5D8A", "#7A5A12"];
+// Không dùng navy đậm vì chìm vào nền ở dark mode
+const GROUP_COLORS = ["#2F5D8A", "#1F6F6B", "#9B3D2E", "#5C6B2E", "#5B3A6B", "#7A5A12"];
 
 // Parse CSV chuẩn RFC 4180: hỗ trợ dấu phẩy, xuống dòng, "" trong ô có ngoặc kép
 function parseCSV(text) {
@@ -127,17 +122,9 @@ const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").repla
 // Nhận cả tiêu đề tiếng Việt lẫn tiêu đề cũ (group/name/desc/url)
 const HEADER_KEYS = { "nhom": "group", "group": "group", "ten hien thi": "name", "ten": "name", "name": "name", "mo ta ngan": "desc", "mo ta": "desc", "desc": "desc", "link": "url", "url": "url" };
 
-// Chữ trên phím: tên viết tắt (MMTB) giữ nguyên tới 4 ký tự, còn lại lấy chữ đầu 2 từ đầu
-function monogram(name) {
-  const words = name.trim().split(/\s+/);
-  if (words.length === 1) {
-    const w = words[0];
-    return (w.length <= 4 && w === w.toUpperCase()) ? w : w.slice(0, 2).toUpperCase();
-  }
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-console.assert(monogram("MMTB") === "MMTB" && monogram("Chấm công") === "CC" && monogram("payroll") === "PA", "monogram broken");
+// Chữ trên phím: ký tự đầu của tên
+const monogram = name => [...name.trim()][0].toUpperCase();
+console.assert(monogram("MMTB") === "M" && monogram("đơn nghỉ") === "Đ", "monogram broken");
 console.assert(JSON.stringify(parseCSV('a,"b,""c"""\r\nd,e')) === '[["a","b,\\"c\\""],["d","e"]]', "parseCSV broken");
 
 const list = document.getElementById("list");
@@ -159,9 +146,8 @@ function render(items) {
     return `<section class="group" style="--c:${color}" aria-label="${esc(g)}">
       <div class="group-head"><span class="swatch"></span><div><h2>${esc(g)}</h2><p>${rows.length} script</p></div></div>
       <div class="tiles">${rows.map(s => {
-        const m = monogram(s.name);
         return `<a class="tile" href="${esc(s.url)}" target="_blank" rel="noopener">
-          <span class="key" data-len="${Math.max(2, m.length)}" aria-hidden="true">${esc(m)}</span>
+          <span class="key" aria-hidden="true">${esc(monogram(s.name))}</span>
           <span><span class="name">${esc(s.name)}</span>${s.desc ? `<span class="desc">${esc(s.desc)}</span>` : ""}</span>
         </a>`;
       }).join("")}</div>
