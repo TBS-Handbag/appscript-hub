@@ -39,7 +39,6 @@
   .group { display: grid; grid-template-columns: 200px 1fr; gap: 24px; padding: 28px 0; border-bottom: 1px solid var(--rule); }
   .group-head { position: sticky; top: 16px; align-self: start; }
   .group-head h2 { margin: 0; font-size: 19px; font-weight: 800; line-height: 1.25; }
-  .group-head p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
   .swatch { display: block; width: 28px; height: 6px; border-radius: 2px; margin-bottom: 10px; background: var(--c); }
 
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
@@ -144,7 +143,7 @@ function render(items) {
   list.innerHTML = [...groups].map(([g, rows], gi) => {
     const color = GROUP_COLORS[gi % GROUP_COLORS.length];
     return `<section class="group" style="--c:${color}" aria-label="${esc(g)}">
-      <div class="group-head"><span class="swatch"></span><div><h2>${esc(g)}</h2><p>${rows.length} script</p></div></div>
+      <div class="group-head"><span class="swatch"></span><h2>${esc(g)}</h2></div>
       <div class="tiles">${rows.map(s => {
         return `<a class="tile" href="${esc(s.url)}" target="_blank" rel="noopener">
           <span class="key" aria-hidden="true">${esc(monogram(s.name))}</span>
