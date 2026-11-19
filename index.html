@@ -43,8 +43,8 @@
 
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
   .tile {
-    display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: start;
-    padding: 14px; min-height: 96px;
+    display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: center;
+    padding: 14px;
     background: var(--plate); color: inherit; text-decoration: none;
     border: 1.5px solid var(--rule); border-radius: 8px;
   }
@@ -58,7 +58,7 @@
     box-shadow: inset 0 -4px 0 rgba(0,0,0,.22);
   }
   .name { display: block; font-weight: 600; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
-  .desc { display: block; color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+  .desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--muted); font-size: 13.5px; margin-top: 2px; }
 
   .state { padding: 64px 0; max-width: 52ch; }
   .state h2 { margin: 0 0 6px; font-size: 22px; font-weight: 800; }
@@ -71,7 +71,7 @@
     .group-head { position: static; display: flex; align-items: baseline; gap: 10px; }
     .swatch { display: inline-block; margin: 0; }
     .tiles { grid-template-columns: 1fr; gap: 8px; }
-    .tile { min-height: 0; padding: 10px; grid-template-columns: 44px 1fr; gap: 12px; align-items: center; }
+    .tile { padding: 10px; grid-template-columns: 44px 1fr; gap: 12px; }
     .key { width: 44px; height: 44px; font-size: 21px; }
   }
 </style>
@@ -80,8 +80,8 @@
 <div class="wrap">
   <header>
     <div>
-      <h1>Kho Apps Script</h1>
-      <p class="lead">Bấm vào ô để mở script. Danh sách lấy từ Google Sheet, sửa sheet xong khoảng 5 phút sau trang sẽ cập nhật.</p>
+      <h1 id="title">Kho Apps Script</h1>
+      <p class="lead">Bấm vào ô để mở app.</p>
     </div>
     <a class="edit" id="edit" target="_blank" rel="noopener">Sửa danh sách</a>
   </header>
@@ -89,10 +89,16 @@
 </div>
 
 <script>
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIT65NnLgmJ3cAl8dKg37VSyhKMSZ5zB_GwR7Lzhgglu9iRYzW02bYiscUHfOy_dxsyKX07ArG3_kv/pub?gid=0&single=true&output=csv";
-const SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/1epJqaNlZnah3IsGmD4GG87eLeFnmYCue4gJryqFJmzQ/edit";
-// Màu cho từng nhóm, theo thứ tự nhóm xuất hiện trong sheet
-// Không dùng navy đậm vì chìm vào nền ở dark mode
+// Sheet portal của công ty, đọc 3 tab qua link export CSV.
+// Sheet chỉ cần share "Bất kỳ ai có đường liên kết đều xem được", không cần xuất bản, không bị cache.
+//   Cau_Hinh_He_Thong: key | giá trị | mô tả | hiển thị với nhà máy  → quyết định app nào hiện
+//   Danh_Muc_App:      phân hệ, tên, mô tả, URL của từng app            → lấy nhóm, tên, mô tả
+//   Phan_He:           danh sách phân hệ + thứ tự                       → thứ tự nhóm
+const SHEET_ID = "14-VWA4pON9HsD5Tj2H-r4ZxMY1I17hFAw_jjx--u_28";
+const TABS = { config: "254335913", apps: "1747864834", groups: "758659214" };
+const csvUrl = gid => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+const SHEET_EDIT_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${TABS.config}`;
+// Màu theo thứ tự nhóm. Không dùng navy đậm vì chìm vào nền ở dark mode
 const GROUP_COLORS = ["#2F5D8A", "#1F6F6B", "#9B3D2E", "#5C6B2E", "#5B3A6B", "#7A5A12"];
 
 // Parse CSV chuẩn RFC 4180: hỗ trợ dấu phẩy, xuống dòng, "" trong ô có ngoặc kép
@@ -118,54 +124,91 @@ function parseCSV(text) {
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase().trim();
 
-// Nhận cả tiêu đề tiếng Việt lẫn tiêu đề cũ (group/name/desc/url)
-const HEADER_KEYS = { "nhom": "group", "group": "group", "ten hien thi": "name", "ten": "name", "name": "name", "mo ta ngan": "desc", "mo ta": "desc", "desc": "desc", "link": "url", "url": "url" };
+// Tên app ở tab cấu hình: lấy từ mô tả ("Link Web App Quản Lý MMTB" → "Quản Lý MMTB"), không có thì lấy từ key ("ANDON_URL" → "ANDON")
+const appName = r => r.desc.replace(/^link\s+(web\s*app\s+)?/i, "").trim() || r.key.replace(/_URL$/i, "").replace(/_/g, " ");
+const byName = (a, b) => a.name.localeCompare(b.name, "vi", { sensitivity: "base", numeric: true });
 
+// Đọc 1 tab thành mảng object, key là tiêu đề cột đã bỏ dấu ("Hiển thị với nhà máy " → "hien thi voi nha may")
+async function loadTab(gid) {
+  const r = await fetch(csvUrl(gid), { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const [head = [], ...rows] = parseCSV(await r.text());
+  const keys = head.map(norm);
+  return rows.map(row => Object.fromEntries(keys.map((k, i) => [k, (row[i] ?? "").trim()])));
+}
+
+// App được bật ở tab cấu hình → tìm trong danh mục (theo URL, rồi theo tên) để lấy nhóm, tên đầy đủ, mô tả
+function buildApps(config, catalog, groups) {
+  const order = new Map(groups.map(g => [g["ma phan he"], Number(g["thu tu"]) || 999]));
+  const byUrl = new Map(catalog.map(a => [a["link ung dung (url)"], a]));
+  const byNorm = new Map(catalog.map(a => [norm(a["ten ung dung"]), a]));
+  return config
+    // ai sửa sheet cũng nhét link được, nên chỉ nhận http(s) để chặn javascript: link
+    .filter(r => norm(r["hien thi voi nha may"]) === "true" && /^https?:\/\//i.test(r["gia tri"]))
+    .map(r => {
+      const fallback = appName({ desc: r["mo ta & ghi chu"] || "", key: r["tham so cau hinh"] || "" });
+      const a = byUrl.get(r["gia tri"]) || byNorm.get(norm(fallback));
+      return {
+        name: a?.["ten ung dung"] || fallback,
+        desc: a?.["mo ta ngan"] || "",
+        group: a?.["ten phan he"] || "Khác",
+        order: order.get(a?.["ma phan he"]) ?? 999,
+        url: r["gia tri"],
+      };
+    });
+}
+
+{ // self-check cách ghép 3 tab
+  const t = buildApps(
+    [{ "tham so cau hinh": "X_URL", "gia tri": "https://x", "mo ta & ghi chu": "Link Web App X", "hien thi voi nha may": "TRUE" },
+     { "tham so cau hinh": "Y_URL", "gia tri": "https://y-new", "mo ta & ghi chu": "Link Web App Andon", "hien thi voi nha may": "TRUE" },
+     { "tham so cau hinh": "Z_URL", "gia tri": "javascript:alert(1)", "mo ta & ghi chu": "", "hien thi voi nha may": "TRUE" },
+     { "tham so cau hinh": "W_URL", "gia tri": "https://w", "mo ta & ghi chu": "", "hien thi voi nha may": "" }],
+    [{ "ma phan he": "sx", "ten phan he": "Sản xuất", "ten ung dung": "Quản Lý X", "mo ta ngan": "d", "link ung dung (url)": "https://x" },
+     { "ma phan he": "sx", "ten phan he": "Sản xuất", "ten ung dung": "Andon", "mo ta ngan": "", "link ung dung (url)": "https://y-old" }],
+    [{ "ma phan he": "sx", "thu tu": "1" }]);
+  console.assert(t.length === 2 && t[0].name === "Quản Lý X" && t[0].group === "Sản xuất" && t[1].name === "Andon" && t[1].url === "https://y-new", "buildApps broken");
+}
 // Chữ trên phím: ký tự đầu của tên
 const monogram = name => [...name.trim()][0].toUpperCase();
+
+console.assert(appName({ desc: "Link Web App Quản Lý MMTB", key: "MMTB_URL" }) === "Quản Lý MMTB" && appName({ desc: "", key: "ANDON_URL" }) === "ANDON", "appName broken");
 console.assert(monogram("MMTB") === "M" && monogram("đơn nghỉ") === "Đ", "monogram broken");
 console.assert(JSON.stringify(parseCSV('a,"b,""c"""\r\nd,e')) === '[["a","b,\\"c\\""],["d","e"]]', "parseCSV broken");
 
 const list = document.getElementById("list");
 document.getElementById("edit").href = SHEET_EDIT_URL;
 
-function render(items) {
-  if (!items.length) {
-    list.innerHTML = `<div class="state"><h2>Chưa có script nào</h2><p>Thêm một dòng vào Google Sheet, khoảng 5 phút sau script sẽ hiện ở đây.</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở Google Sheet</a></div>`;
+function render(apps) {
+  if (!apps.length) {
+    list.innerHTML = `<div class="state"><h2>Chưa có app nào được bật</h2><p>Tick cột "Hiển thị với nhà máy" ở dòng link web app trong sheet cấu hình, tải lại trang là app hiện ở đây.</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở sheet cấu hình</a></div>`;
     return;
   }
   const groups = new Map();
-  for (const s of items) {
-    const g = s.group || "Khác";
-    if (!groups.has(g)) groups.set(g, []);
-    groups.get(g).push(s);
+  for (const a of apps) {
+    if (!groups.has(a.group)) groups.set(a.group, { order: a.order, rows: [] });
+    groups.get(a.group).rows.push(a);
   }
-  list.innerHTML = [...groups].map(([g, rows], gi) => {
-    const color = GROUP_COLORS[gi % GROUP_COLORS.length];
-    return `<section class="group" style="--c:${color}" aria-label="${esc(g)}">
+  list.innerHTML = [...groups]
+    .sort(([ga, a], [gb, b]) => a.order - b.order || ga.localeCompare(gb, "vi"))
+    .map(([g, { rows }], gi) => `<section class="group" style="--c:${GROUP_COLORS[gi % GROUP_COLORS.length]}" aria-label="${esc(g)}">
       <div class="group-head"><span class="swatch"></span><h2>${esc(g)}</h2></div>
-      <div class="tiles">${rows.map(s => {
-        return `<a class="tile" href="${esc(s.url)}" target="_blank" rel="noopener">
-          <span class="key" aria-hidden="true">${esc(monogram(s.name))}</span>
-          <span><span class="name">${esc(s.name)}</span>${s.desc ? `<span class="desc">${esc(s.desc)}</span>` : ""}</span>
-        </a>`;
-      }).join("")}</div>
-    </section>`;
-  }).join("");
+      <div class="tiles">${rows.sort(byName).map(a => `<a class="tile" href="${esc(a.url)}" target="_blank" rel="noopener">
+          <span class="key" aria-hidden="true">${esc(monogram(a.name))}</span>
+          <span><span class="name">${esc(a.name)}</span>${a.desc ? `<span class="desc">${esc(a.desc)}</span>` : ""}</span>
+        </a>`).join("")}</div>
+    </section>`).join("");
 }
 
-fetch(SHEET_CSV_URL, { cache: "no-store" })
-  .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
-  .then(text => {
-    const [head = [], ...rows] = parseCSV(text);
-    const keys = head.map(h => HEADER_KEYS[norm(h)]);
-    render(rows
-      .map(r => { const o = {}; keys.forEach((k, i) => { if (k) o[k] = (r[i] ?? "").trim(); }); return o; })
-      // ai sửa sheet cũng nhét link được, nên chỉ nhận http(s) để chặn javascript: link
-      .filter(s => s.name && /^https?:\/\//i.test(s.url || "")));
+Promise.all([loadTab(TABS.config), loadTab(TABS.apps), loadTab(TABS.groups)])
+  .then(([config, catalog, groups]) => {
+    if (!config.length || !("hien thi voi nha may" in config[0])) throw new Error("tab cấu hình thiếu cột Hiển thị với nhà máy");
+    const portal = config.find(r => r["tham so cau hinh"] === "PORTAL_NAME")?.["gia tri"];
+    if (portal) { document.getElementById("title").textContent = portal; document.title = portal; }
+    render(buildApps(config, catalog, groups));
   })
   .catch(err => {
-    list.innerHTML = `<div class="state"><h2>Không tải được danh sách</h2><p>Kiểm tra mạng rồi tải lại trang. Nếu vẫn lỗi, kiểm tra Google Sheet còn đang bật "Xuất bản lên web" (${esc(err.message)}).</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở Google Sheet</a></div>`;
+    list.innerHTML = `<div class="state"><h2>Không tải được danh sách app</h2><p>Kiểm tra mạng rồi tải lại trang. Nếu vẫn lỗi, kiểm tra sheet cấu hình còn share "Bất kỳ ai có đường liên kết" và còn đủ cột (${esc(err.message)}).</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở sheet cấu hình</a></div>`;
   });
 </script>
 </body>
