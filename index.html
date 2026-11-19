@@ -3,44 +3,103 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Apps Script Hub</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231a73e8'/%3E%3Cg fill='%23fff'%3E%3Crect x='7' y='7' width='8' height='8' rx='2'/%3E%3Crect x='17' y='7' width='8' height='8' rx='2'/%3E%3Crect x='7' y='17' width='8' height='8' rx='2'/%3E%3Crect x='17' y='17' width='8' height='8' rx='2' opacity='.55'/%3E%3C/g%3E%3C/svg%3E">
+<title>Kho Apps Script</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231C2B4A'/%3E%3Crect x='6' y='6' width='9' height='9' rx='1.5' fill='%23fff'/%3E%3Crect x='17' y='6' width='9' height='9' rx='1.5' fill='%23fff'/%3E%3Crect x='6' y='17' width='9' height='9' rx='1.5' fill='%23fff'/%3E%3Crect x='17' y='17' width='9' height='9' rx='1.5' fill='%23F5B700'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#f5f6f8; --card:#fff; --text:#1d2330; --muted:#6b7280; --accent:#1a73e8; --border:#e3e6eb; }
+  :root {
+    --bg: #EEF0EC;
+    --plate: #FFFFFF;
+    --ink: #1C2B4A;
+    --muted: #5B6577;
+    --rule: #CDD2CA;
+    --signal: #F5B700;
+  }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#14171c; --card:#1f242c; --text:#e8eaed; --muted:#9aa0a6; --accent:#8ab4f8; --border:#2e343d; }
+    :root { --bg: #141A25; --plate: #1D2535; --ink: #E8EBF1; --muted: #9AA3B5; --rule: #2E384D; }
   }
   * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); }
-  header { padding:24px 16px 8px; max-width:1200px; margin:0 auto; }
-  h1 { margin:0 0 12px; font-size:24px; }
-  #q { width:100%; padding:12px 14px; font-size:16px; border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--text); }
-  #q:focus { outline:2px solid var(--accent); border-color:transparent; }
-  main { max-width:1200px; margin:0 auto; padding:16px; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:20px 0 10px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; }
-  a.cell { display:block; padding:16px; min-height:90px; background:var(--card); border:1px solid var(--border); border-radius:12px; color:inherit; text-decoration:none; transition:transform .1s, border-color .1s; }
-  a.cell:hover, a.cell:focus-visible { border-color:var(--accent); transform:translateY(-2px); outline:none; }
-  .name { font-weight:600; margin-bottom:6px; }
-  .desc { font-size:13px; color:var(--muted); }
-  #empty { color:var(--muted); display:none; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 15px/1.5 "Be Vietnam Pro", system-ui, sans-serif;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+  header { padding: 48px 0 32px; display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: end; justify-content: space-between; border-bottom: 2px solid var(--ink); }
+  h1 { margin: 0; font-size: clamp(32px, 6vw, 52px); font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; }
+  .lead { margin: 10px 0 0; color: var(--muted); max-width: 52ch; }
+  .edit { color: var(--ink); font-weight: 600; text-decoration: none; padding: 10px 16px; border: 1.5px solid var(--ink); border-radius: 6px; white-space: nowrap; }
+  .edit:hover { background: var(--ink); color: var(--bg); }
+
+  main { padding: 8px 0 64px; }
+  .group { display: grid; grid-template-columns: 200px 1fr; gap: 24px; padding: 28px 0; border-bottom: 1px solid var(--rule); }
+  .group-head { position: sticky; top: 16px; align-self: start; }
+  .group-head h2 { margin: 0; font-size: 19px; font-weight: 800; line-height: 1.25; }
+  .group-head p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .swatch { display: block; width: 28px; height: 6px; border-radius: 2px; margin-bottom: 10px; background: var(--c); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .tile {
+    display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: start;
+    padding: 14px; min-height: 96px;
+    background: var(--plate); color: inherit; text-decoration: none;
+    border: 1.5px solid var(--rule); border-radius: 8px;
+  }
+  .tile:hover { border-color: var(--ink); }
+  .tile:focus-visible, .edit:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+  .key {
+    width: 56px; height: 56px; border-radius: 6px;
+    display: grid; place-items: center;
+    background: var(--c); color: #fff;
+    font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+    box-shadow: inset 0 -4px 0 rgba(0,0,0,.22);
+  }
+  .key[data-len="2"] { font-size: 22px; }
+  .key[data-len="3"] { font-size: 17px; }
+  .key[data-len="4"] { font-size: 14px; }
+  .name { display: block; font-weight: 600; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+  .desc { display: block; color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+
+  .state { padding: 64px 0; max-width: 52ch; }
+  .state h2 { margin: 0 0 6px; font-size: 22px; font-weight: 800; }
+  .state p { margin: 0 0 18px; color: var(--muted); }
+
+  @media (max-width: 720px) {
+    header { display: none; }
+    main { padding-top: 0; }
+    .group { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 20px 0; }
+    .group-head { position: static; display: flex; align-items: baseline; gap: 10px; }
+    .swatch { display: inline-block; margin: 0; }
+    .tiles { grid-template-columns: 1fr; gap: 8px; }
+    .tile { min-height: 0; padding: 10px; grid-template-columns: 44px 1fr; gap: 12px; align-items: center; }
+    .key { width: 44px; height: 44px; }
+    .key[data-len="2"] { font-size: 17px; }
+    .key[data-len="3"] { font-size: 14px; }
+    .key[data-len="4"] { font-size: 11px; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>Apps Script Hub</h1>
-  <input id="q" type="search" placeholder="Tìm script… (bấm / để focus)" autocomplete="off" aria-label="Tìm script">
-</header>
-<main id="list"></main>
-<p id="empty" style="text-align:center">Không tìm thấy.</p>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Kho Apps Script</h1>
+      <p class="lead">Bấm vào ô để mở script. Danh sách lấy từ Google Sheet, sửa sheet xong khoảng 5 phút sau trang sẽ cập nhật.</p>
+    </div>
+    <a class="edit" id="edit" target="_blank" rel="noopener">Sửa danh sách</a>
+  </header>
+  <main id="list" aria-live="polite"><p class="state">Đang tải danh sách…</p></main>
+</div>
 
 <script>
-// ===== DÁN LINK CSV CỦA GOOGLE SHEET VÀO ĐÂY =====
-// Sheet cần dòng tiêu đề: group | name | desc | url
-// File → Share → Publish to web → chọn sheet → Comma-separated values (.csv) → Publish → copy link
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIT65NnLgmJ3cAl8dKg37VSyhKMSZ5zB_GwR7Lzhgglu9iRYzW02bYiscUHfOy_dxsyKX07ArG3_kv/pub?gid=0&single=true&output=csv";
-// Sửa danh sách tại: https://docs.google.com/spreadsheets/d/1epJqaNlZnah3IsGmD4GG87eLeFnmYCue4gJryqFJmzQ/edit
-// =================================================
+const SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/1epJqaNlZnah3IsGmD4GG87eLeFnmYCue4gJryqFJmzQ/edit";
+// Màu cho từng nhóm, theo thứ tự nhóm xuất hiện trong sheet
+const GROUP_COLORS = ["#1C2B4A", "#1F6F6B", "#9B3D2E", "#5C6B2E", "#5B3A6B", "#2F5D8A", "#7A5A12"];
 
 // Parse CSV chuẩn RFC 4180: hỗ trợ dấu phẩy, xuống dòng, "" trong ô có ngoặc kép
 function parseCSV(text) {
@@ -61,42 +120,68 @@ function parseCSV(text) {
   if (cell || row.length) { row.push(cell); rows.push(row); }
   return rows;
 }
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase().trim();
+
+// Nhận cả tiêu đề tiếng Việt lẫn tiêu đề cũ (group/name/desc/url)
+const HEADER_KEYS = { "nhom": "group", "group": "group", "ten hien thi": "name", "ten": "name", "name": "name", "mo ta ngan": "desc", "mo ta": "desc", "desc": "desc", "link": "url", "url": "url" };
+
+// Chữ trên phím: tên viết tắt (MMTB) giữ nguyên tới 4 ký tự, còn lại lấy chữ đầu 2 từ đầu
+function monogram(name) {
+  const words = name.trim().split(/\s+/);
+  if (words.length === 1) {
+    const w = words[0];
+    return (w.length <= 4 && w === w.toUpperCase()) ? w : w.slice(0, 2).toUpperCase();
+  }
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+console.assert(monogram("MMTB") === "MMTB" && monogram("Chấm công") === "CC" && monogram("payroll") === "PA", "monogram broken");
 console.assert(JSON.stringify(parseCSV('a,"b,""c"""\r\nd,e')) === '[["a","b,\\"c\\""],["d","e"]]', "parseCSV broken");
 
-let SCRIPTS = [];
-const list = document.getElementById("list"), q = document.getElementById("q"), empty = document.getElementById("empty");
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
-const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
+const list = document.getElementById("list");
+document.getElementById("edit").href = SHEET_EDIT_URL;
 
-function render() {
-  const term = norm(q.value.trim());
-  const groups = {};
-  for (const s of SCRIPTS) {
-    if (term && !norm(s.name + " " + s.desc + " " + s.group).includes(term)) continue;
-    (groups[s.group || "Khác"] ??= []).push(s);
+function render(items) {
+  if (!items.length) {
+    list.innerHTML = `<div class="state"><h2>Chưa có script nào</h2><p>Thêm một dòng vào Google Sheet, khoảng 5 phút sau script sẽ hiện ở đây.</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở Google Sheet</a></div>`;
+    return;
   }
-  list.innerHTML = Object.entries(groups).map(([g, items]) =>
-    `<h2>${esc(g)} (${items.length})</h2><div class="grid">` +
-    items.map(s => `<a class="cell" href="${esc(s.url)}" target="_blank" rel="noopener"><div class="name">${esc(s.name)}</div><div class="desc">${esc(s.desc)}</div></a>`).join("") +
-    `</div>`).join("");
-  empty.style.display = Object.keys(groups).length ? "none" : "block";
+  const groups = new Map();
+  for (const s of items) {
+    const g = s.group || "Khác";
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(s);
+  }
+  list.innerHTML = [...groups].map(([g, rows], gi) => {
+    const color = GROUP_COLORS[gi % GROUP_COLORS.length];
+    return `<section class="group" style="--c:${color}" aria-label="${esc(g)}">
+      <div class="group-head"><span class="swatch"></span><div><h2>${esc(g)}</h2><p>${rows.length} script</p></div></div>
+      <div class="tiles">${rows.map(s => {
+        const m = monogram(s.name);
+        return `<a class="tile" href="${esc(s.url)}" target="_blank" rel="noopener">
+          <span class="key" data-len="${Math.max(2, m.length)}" aria-hidden="true">${esc(m)}</span>
+          <span><span class="name">${esc(s.name)}</span>${s.desc ? `<span class="desc">${esc(s.desc)}</span>` : ""}</span>
+        </a>`;
+      }).join("")}</div>
+    </section>`;
+  }).join("");
 }
-q.addEventListener("input", render);
-addEventListener("keydown", e => { if (e.key === "/" && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
 
-list.textContent = "Đang tải…";
 fetch(SHEET_CSV_URL, { cache: "no-store" })
   .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
   .then(text => {
     const [head = [], ...rows] = parseCSV(text);
-    const keys = head.map(h => h.trim().toLowerCase());
-    SCRIPTS = rows
-      .map(r => Object.fromEntries(keys.map((k, i) => [k, (r[i] ?? "").trim()])))
+    const keys = head.map(h => HEADER_KEYS[norm(h)]);
+    render(rows
+      .map(r => { const o = {}; keys.forEach((k, i) => { if (k) o[k] = (r[i] ?? "").trim(); }); return o; })
       // ai sửa sheet cũng nhét link được, nên chỉ nhận http(s) để chặn javascript: link
-      .filter(s => s.name && /^https?:\/\//i.test(s.url));
-    render();
+      .filter(s => s.name && /^https?:\/\//i.test(s.url || "")));
   })
-  .catch(err => { list.textContent = "Không tải được danh sách từ Google Sheet (" + err.message + "). Kiểm tra lại SHEET_CSV_URL."; });
+  .catch(err => {
+    list.innerHTML = `<div class="state"><h2>Không tải được danh sách</h2><p>Kiểm tra mạng rồi tải lại trang. Nếu vẫn lỗi, kiểm tra Google Sheet còn đang bật "Xuất bản lên web" (${esc(err.message)}).</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở Google Sheet</a></div>`;
+  });
 </script>
 </body>
 </html>
