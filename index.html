@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apps Script Hub</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231a73e8'/%3E%3Cg fill='%23fff'%3E%3Crect x='7' y='7' width='8' height='8' rx='2'/%3E%3Crect x='17' y='7' width='8' height='8' rx='2'/%3E%3Crect x='7' y='17' width='8' height='8' rx='2'/%3E%3Crect x='17' y='17' width='8' height='8' rx='2' opacity='.55'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1d2330; --muted:#6b7280; --accent:#1a73e8; --border:#e3e6eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171c; --card:#1f242c; --text:#e8eaed; --muted:#9aa0a6; --accent:#8ab4f8; --border:#2e343d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:24px 16px 8px; max-width:1200px; margin:0 auto; }
+  h1 { margin:0 0 12px; font-size:24px; }
+  #q { width:100%; padding:12px 14px; font-size:16px; border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--text); }
+  #q:focus { outline:2px solid var(--accent); border-color:transparent; }
+  main { max-width:1200px; margin:0 auto; padding:16px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:20px 0 10px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; }
+  a.cell { display:block; padding:16px; min-height:90px; background:var(--card); border:1px solid var(--border); border-radius:12px; color:inherit; text-decoration:none; transition:transform .1s, border-color .1s; }
+  a.cell:hover, a.cell:focus-visible { border-color:var(--accent); transform:translateY(-2px); outline:none; }
+  .name { font-weight:600; margin-bottom:6px; }
+  .desc { font-size:13px; color:var(--muted); }
+  #empty { color:var(--muted); display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Apps Script Hub</h1>
+  <input id="q" type="search" placeholder="Tìm script… (bấm / để focus)" autocomplete="off" aria-label="Tìm script">
+</header>
+<main id="list"></main>
+<p id="empty" style="text-align:center">Không tìm thấy.</p>
+
+<script>
+// ===== DÁN LINK CSV CỦA GOOGLE SHEET VÀO ĐÂY =====
+// Sheet cần dòng tiêu đề: group | name | desc | url
+// File → Share → Publish to web → chọn sheet → Comma-separated values (.csv) → Publish → copy link
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIT65NnLgmJ3cAl8dKg37VSyhKMSZ5zB_GwR7Lzhgglu9iRYzW02bYiscUHfOy_dxsyKX07ArG3_kv/pub?gid=0&single=true&output=csv";
+// Sửa danh sách tại: https://docs.google.com/spreadsheets/d/1epJqaNlZnah3IsGmD4GG87eLeFnmYCue4gJryqFJmzQ/edit
+// =================================================
+
+// Parse CSV chuẩn RFC 4180: hỗ trợ dấu phẩy, xuống dòng, "" trong ô có ngoặc kép
+function parseCSV(text) {
+  const rows = []; let row = [], cell = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cell += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+console.assert(JSON.stringify(parseCSV('a,"b,""c"""\r\nd,e')) === '[["a","b,\\"c\\""],["d","e"]]', "parseCSV broken");
+
+let SCRIPTS = [];
+const list = document.getElementById("list"), q = document.getElementById("q"), empty = document.getElementById("empty");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
+
+function render() {
+  const term = norm(q.value.trim());
+  const groups = {};
+  for (const s of SCRIPTS) {
+    if (term && !norm(s.name + " " + s.desc + " " + s.group).includes(term)) continue;
+    (groups[s.group || "Khác"] ??= []).push(s);
+  }
+  list.innerHTML = Object.entries(groups).map(([g, items]) =>
+    `<h2>${esc(g)} (${items.length})</h2><div class="grid">` +
+    items.map(s => `<a class="cell" href="${esc(s.url)}" target="_blank" rel="noopener"><div class="name">${esc(s.name)}</div><div class="desc">${esc(s.desc)}</div></a>`).join("") +
+    `</div>`).join("");
+  empty.style.display = Object.keys(groups).length ? "none" : "block";
+}
+q.addEventListener("input", render);
+addEventListener("keydown", e => { if (e.key === "/" && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
+
+list.textContent = "Đang tải…";
+fetch(SHEET_CSV_URL, { cache: "no-store" })
+  .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+  .then(text => {
+    const [head = [], ...rows] = parseCSV(text);
+    const keys = head.map(h => h.trim().toLowerCase());
+    SCRIPTS = rows
+      .map(r => Object.fromEntries(keys.map((k, i) => [k, (r[i] ?? "").trim()])))
+      // ai sửa sheet cũng nhét link được, nên chỉ nhận http(s) để chặn javascript: link
+      .filter(s => s.name && /^https?:\/\//i.test(s.url));
+    render();
+  })
+  .catch(err => { list.textContent = "Không tải được danh sách từ Google Sheet (" + err.message + "). Kiểm tra lại SHEET_CSV_URL."; });
+</script>
+</body>
+</html>
