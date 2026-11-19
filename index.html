@@ -80,7 +80,7 @@
 <div class="wrap">
   <header>
     <div>
-      <h1 id="title">Kho Apps Script</h1>
+      <h1>Kho Apps Script</h1>
       <p class="lead">Bấm vào ô để mở app.</p>
     </div>
     <a class="edit" id="edit" target="_blank" rel="noopener">Sửa danh sách</a>
@@ -89,15 +89,14 @@
 </div>
 
 <script>
-// Sheet portal của công ty, đọc 3 tab qua link export CSV.
+// Sheet portal của công ty, đọc 2 tab qua link export CSV.
 // Sheet chỉ cần share "Bất kỳ ai có đường liên kết đều xem được", không cần xuất bản, không bị cache.
-//   Cau_Hinh_He_Thong: key | giá trị | mô tả | hiển thị với nhà máy  → quyết định app nào hiện
-//   Danh_Muc_App:      phân hệ, tên, mô tả, URL của từng app            → lấy nhóm, tên, mô tả
-//   Phan_He:           danh sách phân hệ + thứ tự                       → thứ tự nhóm
+//   Danh_Muc_App: phân hệ, tên, mô tả, URL, hiển thị với nhà máy → app nào hiện + nhóm, tên, mô tả
+//   Phan_He:      danh sách phân hệ + thứ tự                     → thứ tự nhóm
 const SHEET_ID = "14-VWA4pON9HsD5Tj2H-r4ZxMY1I17hFAw_jjx--u_28";
-const TABS = { config: "254335913", apps: "1747864834", groups: "758659214" };
+const TABS = { apps: "1747864834", groups: "758659214" };
 const csvUrl = gid => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
-const SHEET_EDIT_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${TABS.config}`;
+const SHEET_EDIT_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${TABS.apps}`;
 // Màu theo thứ tự nhóm. Không dùng navy đậm vì chìm vào nền ở dark mode
 const GROUP_COLORS = ["#2F5D8A", "#1F6F6B", "#9B3D2E", "#5C6B2E", "#5B3A6B", "#7A5A12"];
 
@@ -124,8 +123,6 @@ function parseCSV(text) {
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase().trim();
 
-// Tên app ở tab cấu hình: lấy từ mô tả ("Link Web App Quản Lý MMTB" → "Quản Lý MMTB"), không có thì lấy từ key ("ANDON_URL" → "ANDON")
-const appName = r => r.desc.replace(/^link\s+(web\s*app\s+)?/i, "").trim() || r.key.replace(/_URL$/i, "").replace(/_/g, " ");
 const byName = (a, b) => a.name.localeCompare(b.name, "vi", { sensitivity: "base", numeric: true });
 
 // Đọc 1 tab thành mảng object, key là tiêu đề cột đã bỏ dấu ("Hiển thị với nhà máy " → "hien thi voi nha may")
@@ -137,42 +134,33 @@ async function loadTab(gid) {
   return rows.map(row => Object.fromEntries(keys.map((k, i) => [k, (row[i] ?? "").trim()])));
 }
 
-// App được bật ở tab cấu hình → tìm trong danh mục (theo URL, rồi theo tên) để lấy nhóm, tên đầy đủ, mô tả
-function buildApps(config, catalog, groups) {
+// App trong danh mục có "Hiển thị với nhà máy" = TRUE, kèm thứ tự nhóm lấy từ tab Phan_He
+function buildApps(catalog, groups) {
   const order = new Map(groups.map(g => [g["ma phan he"], Number(g["thu tu"]) || 999]));
-  const byUrl = new Map(catalog.map(a => [a["link ung dung (url)"], a]));
-  const byNorm = new Map(catalog.map(a => [norm(a["ten ung dung"]), a]));
-  return config
+  return catalog
     // ai sửa sheet cũng nhét link được, nên chỉ nhận http(s) để chặn javascript: link
-    .filter(r => norm(r["hien thi voi nha may"]) === "true" && /^https?:\/\//i.test(r["gia tri"]))
-    .map(r => {
-      const fallback = appName({ desc: r["mo ta & ghi chu"] || "", key: r["tham so cau hinh"] || "" });
-      const a = byUrl.get(r["gia tri"]) || byNorm.get(norm(fallback));
-      return {
-        name: a?.["ten ung dung"] || fallback,
-        desc: a?.["mo ta ngan"] || "",
-        group: a?.["ten phan he"] || "Khác",
-        order: order.get(a?.["ma phan he"]) ?? 999,
-        url: r["gia tri"],
-      };
-    });
+    .filter(a => norm(a["hien thi voi nha may"]) === "true" && a["ten ung dung"] && /^https?:\/\//i.test(a["link ung dung (url)"]))
+    .map(a => ({
+      name: a["ten ung dung"],
+      desc: a["mo ta ngan"] || "",
+      group: a["ten phan he"] || "Khác",
+      order: order.get(a["ma phan he"]) ?? 999,
+      url: a["link ung dung (url)"],
+    }));
 }
 
-{ // self-check cách ghép 3 tab
+{ // self-check lọc danh mục
   const t = buildApps(
-    [{ "tham so cau hinh": "X_URL", "gia tri": "https://x", "mo ta & ghi chu": "Link Web App X", "hien thi voi nha may": "TRUE" },
-     { "tham so cau hinh": "Y_URL", "gia tri": "https://y-new", "mo ta & ghi chu": "Link Web App Andon", "hien thi voi nha may": "TRUE" },
-     { "tham so cau hinh": "Z_URL", "gia tri": "javascript:alert(1)", "mo ta & ghi chu": "", "hien thi voi nha may": "TRUE" },
-     { "tham so cau hinh": "W_URL", "gia tri": "https://w", "mo ta & ghi chu": "", "hien thi voi nha may": "" }],
-    [{ "ma phan he": "sx", "ten phan he": "Sản xuất", "ten ung dung": "Quản Lý X", "mo ta ngan": "d", "link ung dung (url)": "https://x" },
-     { "ma phan he": "sx", "ten phan he": "Sản xuất", "ten ung dung": "Andon", "mo ta ngan": "", "link ung dung (url)": "https://y-old" }],
+    [{ "ma phan he": "sx", "ten phan he": "Sản xuất", "ten ung dung": "X", "link ung dung (url)": "https://x", "hien thi voi nha may": "TRUE" },
+     { "ma phan he": "sx", "ten phan he": "Sản xuất", "ten ung dung": "Y", "link ung dung (url)": "https://y", "hien thi voi nha may": "" },
+     { "ma phan he": "sx", "ten phan he": "Sản xuất", "ten ung dung": "Z", "link ung dung (url)": "javascript:alert(1)", "hien thi voi nha may": "TRUE" },
+     { "ma phan he": "sx", "ten phan he": "Sản xuất", "ten ung dung": "W", "link ung dung (url)": "#", "hien thi voi nha may": "TRUE" }],
     [{ "ma phan he": "sx", "thu tu": "1" }]);
-  console.assert(t.length === 2 && t[0].name === "Quản Lý X" && t[0].group === "Sản xuất" && t[1].name === "Andon" && t[1].url === "https://y-new", "buildApps broken");
+  console.assert(t.length === 1 && t[0].name === "X" && t[0].group === "Sản xuất" && t[0].order === 1, "buildApps broken");
 }
 // Chữ trên phím: ký tự đầu của tên
 const monogram = name => [...name.trim()][0].toUpperCase();
 
-console.assert(appName({ desc: "Link Web App Quản Lý MMTB", key: "MMTB_URL" }) === "Quản Lý MMTB" && appName({ desc: "", key: "ANDON_URL" }) === "ANDON", "appName broken");
 console.assert(monogram("MMTB") === "M" && monogram("đơn nghỉ") === "Đ", "monogram broken");
 console.assert(JSON.stringify(parseCSV('a,"b,""c"""\r\nd,e')) === '[["a","b,\\"c\\""],["d","e"]]', "parseCSV broken");
 
@@ -181,7 +169,7 @@ document.getElementById("edit").href = SHEET_EDIT_URL;
 
 function render(apps) {
   if (!apps.length) {
-    list.innerHTML = `<div class="state"><h2>Chưa có app nào được bật</h2><p>Tick cột "Hiển thị với nhà máy" ở dòng link web app trong sheet cấu hình, tải lại trang là app hiện ở đây.</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở sheet cấu hình</a></div>`;
+    list.innerHTML = `<div class="state"><h2>Chưa có app nào được bật</h2><p>Tick cột "Hiển thị với nhà máy" ở tab Danh_Muc_App, tải lại trang là app hiện ở đây.</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở danh mục app</a></div>`;
     return;
   }
   const groups = new Map();
@@ -200,15 +188,13 @@ function render(apps) {
     </section>`).join("");
 }
 
-Promise.all([loadTab(TABS.config), loadTab(TABS.apps), loadTab(TABS.groups)])
-  .then(([config, catalog, groups]) => {
-    if (!config.length || !("hien thi voi nha may" in config[0])) throw new Error("tab cấu hình thiếu cột Hiển thị với nhà máy");
-    const portal = config.find(r => r["tham so cau hinh"] === "PORTAL_NAME")?.["gia tri"];
-    if (portal) { document.getElementById("title").textContent = portal; document.title = portal; }
-    render(buildApps(config, catalog, groups));
+Promise.all([loadTab(TABS.apps), loadTab(TABS.groups)])
+  .then(([catalog, groups]) => {
+    if (!catalog.length || !("hien thi voi nha may" in catalog[0])) throw new Error("tab Danh_Muc_App thiếu cột Hiển thị với nhà máy");
+    render(buildApps(catalog, groups));
   })
   .catch(err => {
-    list.innerHTML = `<div class="state"><h2>Không tải được danh sách app</h2><p>Kiểm tra mạng rồi tải lại trang. Nếu vẫn lỗi, kiểm tra sheet cấu hình còn share "Bất kỳ ai có đường liên kết" và còn đủ cột (${esc(err.message)}).</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở sheet cấu hình</a></div>`;
+    list.innerHTML = `<div class="state"><h2>Không tải được danh sách app</h2><p>Kiểm tra mạng rồi tải lại trang. Nếu vẫn lỗi, kiểm tra sheet còn share "Bất kỳ ai có đường liên kết" và tab Danh_Muc_App còn đủ cột (${esc(err.message)}).</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở danh mục app</a></div>`;
   });
 </script>
 </body>
