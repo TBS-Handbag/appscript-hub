@@ -46,7 +46,7 @@
 
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
   .tile {
-    display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: center;
+    display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center;
     padding: 14px;
     background: var(--plate); color: inherit; text-decoration: none;
     border: 1.5px solid var(--rule); border-radius: 8px;
@@ -59,9 +59,38 @@
     background: var(--c); color: #fff;
     font-size: 26px; font-weight: 800; line-height: 1;
     box-shadow: inset 0 -4px 0 rgba(0,0,0,.22);
+    transition: transform .08s, box-shadow .08s;
   }
-  .name { display: block; font-weight: 600; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+  /* Nút bấm vật lý: bấm thì lún xuống, gờ dưới mỏng lại */
+  .tile:active .key { transform: translateY(3px); box-shadow: inset 0 -1px 0 rgba(0,0,0,.22); }
+  /* Tên tối đa 2 dòng, dài hơn thì "…" */
+  .name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 600; font-size: 16px; line-height: 1.3; overflow-wrap: break-word; }
   .desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+
+  /* Skeleton khi đang tải: dựng lại đúng khung group/tile để lúc data về không bị nhảy layout */
+  .sk { background: var(--rule); box-shadow: none; border-radius: 4px; animation: pulse 1s ease-in-out infinite alternate; }
+  .sk-line { display: block; height: 14px; margin: 5px 0; }
+  .sk-title { width: 130px; height: 20px; margin: 0; }
+  @keyframes pulse { from { opacity: .4; } to { opacity: 1; } }
+  .group:not([aria-hidden]) { animation: fadein .3s ease-out both; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
+  @media (prefers-reduced-motion: reduce) { .sk, .group { animation: none !important; } }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* Sắp xếp theo nhóm: nút cạnh tên nhóm, kéo bằng tay nắm để chạm chỗ khác vẫn cuộn được */
+  .gactions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .gbtn { font-family: inherit; font-size: 13px; font-weight: 600; color: var(--muted); background: none; border: 1px solid var(--rule); border-radius: 6px; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
+  .gbtn:hover { color: var(--ink); border-color: var(--ink); }
+  .gbtn:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+  .gbtn.reset { display: none; border-color: transparent; text-decoration: underline; }
+  .sorting .gbtn.reset { display: inline-block; }
+  .sorting .gbtn[data-act="sort"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .grip { display: none; width: 40px; height: 44px; margin: -6px -8px -6px 0; place-items: center; color: var(--muted); cursor: grab; touch-action: none; }
+  .sorting .grip { display: grid; }
+  .sorting .tile { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .sorting .tile:hover { border-color: var(--rule); }
+  .tile.sortable-chosen { border-color: var(--ink); }
+  .sortable-ghost { opacity: .35; }
 
   .state { padding: 64px 0; max-width: 52ch; }
   .state h2 { margin: 0 0 6px; font-size: 22px; font-weight: 800; }
@@ -71,12 +100,15 @@
     header { display: none; }
     main { padding-top: 0; }
     .group { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 20px 0; }
-    .group-head { position: static; display: flex; align-items: baseline; gap: 10px; }
+    .group-head { position: static; display: flex; align-items: center; gap: 10px; }
+    .group-head h2 { flex: 1; min-width: 0; }
+    .gactions { margin: 0; flex-wrap: nowrap; flex-shrink: 0; gap: 2px; }
+    .gbtn { padding: 7px 10px; }
     .swatch { display: inline-block; margin: 0; }
     .tiles { grid-template-columns: 1fr; gap: 8px; }
-    .tile { padding: 10px; grid-template-columns: 44px 1fr; gap: 12px; }
+    .tile { padding: 10px; grid-template-columns: 44px 1fr auto; gap: 12px; }
     .key { width: 44px; height: 44px; font-size: 21px; }
-    .desc { display: none; }
+    .desc, .sk-sub { display: none; }
   }
 </style>
 </head>
@@ -89,7 +121,15 @@
     </div>
     <a class="edit" id="edit" target="_blank" rel="noopener">Sửa danh sách</a>
   </header>
-  <main id="list" aria-live="polite"><p class="state">Đang tải danh sách…</p></main>
+  <main id="list" aria-live="polite"><p class="sr-only">Đang tải danh sách…</p></main>
+  <script>
+    // Vẽ skeleton ngay, trước khi script chính fetch sheet
+    (() => {
+      const tile = w => `<div class="tile"><span class="key sk"></span><span><span class="sk sk-line" style="width:${w}%"></span><span class="sk sk-line sk-sub" style="width:90%"></span></span></div>`;
+      const group = ws => `<section class="group" aria-hidden="true"><div class="group-head"><span class="swatch sk"></span><span class="sk sk-line sk-title"></span></div><div class="tiles">${ws.map(tile).join("")}</div></section>`;
+      document.getElementById("list").insertAdjacentHTML("beforeend", group([55, 40, 70, 60, 50, 65]) + group([65, 45, 60]));
+    })();
+  </script>
 </div>
 
 <script>
@@ -163,6 +203,7 @@ function buildApps(catalog, groups) {
   console.assert(t.length === 1 && t[0].name === "X" && t[0].group === "Sản xuất" && t[0].order === 1, "buildApps broken");
 }
 // Chữ trên phím: ký tự đầu của tên
+const GRIP = `<span class="grip" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="5" cy="3" r="1.5"/><circle cx="11" cy="3" r="1.5"/><circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/><circle cx="5" cy="13" r="1.5"/><circle cx="11" cy="13" r="1.5"/></svg></span>`;
 const monogram = name => [...name.trim()][0].toUpperCase();
 
 console.assert(monogram("MMTB") === "M" && monogram("đơn nghỉ") === "Đ", "monogram broken");
@@ -171,7 +212,20 @@ console.assert(JSON.stringify(parseCSV('a,"b,""c"""\r\nd,e')) === '[["a","b,\\"c
 const list = document.getElementById("list");
 document.getElementById("edit").href = SHEET_EDIT_URL;
 
+// Thứ tự user tự sắp, lưu theo trình duyệt: { "Tên phân hệ": [url, url, ...] }
+const ORDER_KEY = "ql-app-order";
+const loadOrder = () => { try { return JSON.parse(localStorage.getItem(ORDER_KEY)) || {}; } catch { return {}; } };
+const saveOrder = o => { try { localStorage.setItem(ORDER_KEY, JSON.stringify(o)); } catch {} };
+// App đã sắp theo thứ tự đã lưu; app mới (chưa có trong thứ tự) xếp cuối, theo tên
+const sortRows = (rows, saved = []) => {
+  const at = a => { const i = saved.indexOf(a.url); return i < 0 ? 1e9 : i; };
+  return [...rows].sort((a, b) => at(a) - at(b) || byName(a, b));
+};
+console.assert(sortRows([{ name: "A", url: "a" }, { name: "B", url: "b" }, { name: "C", url: "c" }], ["c", "x", "a"]).map(r => r.url).join() === "c,a,b", "sortRows broken");
+
+let lastApps = [];
 function render(apps) {
+  lastApps = apps;
   if (!apps.length) {
     list.innerHTML = `<div class="state"><h2>Chưa có app nào được bật</h2><p>Tick cột "Hiển thị với nhà máy" ở tab Danh_Muc_App, tải lại trang là app hiện ở đây.</p><a class="edit" href="${esc(SHEET_EDIT_URL)}" target="_blank" rel="noopener">Mở danh mục app</a></div>`;
     return;
@@ -181,16 +235,80 @@ function render(apps) {
     if (!groups.has(a.group)) groups.set(a.group, { order: a.order, rows: [] });
     groups.get(a.group).rows.push(a);
   }
+  const order = loadOrder();
   list.innerHTML = [...groups]
     .sort(([ga, a], [gb, b]) => a.order - b.order || ga.localeCompare(gb, "vi"))
     .map(([g, { rows }], gi) => `<section class="group" style="--c:${GROUP_COLORS[gi % GROUP_COLORS.length]}" aria-label="${esc(g)}">
-      <div class="group-head"><span class="swatch"></span><h2>${esc(g)}</h2></div>
-      <div class="tiles">${rows.sort(byName).map(a => `<a class="tile" href="${esc(a.url)}" target="_blank" rel="noopener">
+      <div class="group-head"><span class="swatch"></span><h2>${esc(g)}</h2>${rows.length > 1 ? `<span class="gactions"><button type="button" class="gbtn" data-act="sort" aria-pressed="false" title="Kéo tay nắm hoặc dùng phím mũi tên để đổi chỗ">Sắp xếp</button><button type="button" class="gbtn reset" data-act="reset">Mặc định</button></span>` : ""}</div>
+      <div class="tiles" data-group="${esc(g)}">${sortRows(rows, order[g]).map(a => `<a class="tile" href="${esc(a.url)}" data-url="${esc(a.url)}" target="_blank" rel="noopener">
           <span class="key" aria-hidden="true">${esc(monogram(a.name))}</span>
-          <span><span class="name">${esc(a.name)}</span>${a.desc ? `<span class="desc">${esc(a.desc)}</span>` : ""}</span>
+          <span><span class="name">${esc(a.name)}</span>${a.desc ? `<span class="desc">${esc(a.desc)}</span>` : ""}</span>${GRIP}
         </a>`).join("")}</div>
     </section>`).join("");
 }
+
+// ---- Sắp xếp trong nhóm: nút "Sắp xếp" ở đầu nhóm → kéo tay nắm (SortableJS, chỉ tải khi cần) ----
+let sortableLib;
+const loadSortable = () => sortableLib ??= new Promise((ok, fail) => {
+  const s = document.createElement("script");
+  s.src = "https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js";
+  s.integrity = "sha384-eeLEhtwdMwD3X9y+8P3Cn7Idl/M+w8H4uZqkgD/2eJVkWIN1yKzEj6XegJ9dL3q0";
+  s.crossOrigin = "anonymous";
+  s.onload = () => ok(window.Sortable);
+  s.onerror = () => { sortableLib = null; fail(new Error("Không tải được thư viện kéo thả")); };
+  document.head.append(s);
+});
+
+function persistOrder(tiles) {
+  const o = loadOrder();
+  o[tiles.dataset.group] = [...tiles.children].map(c => c.dataset.url);
+  saveOrder(o);
+}
+
+function setSorting(sec, on) {
+  const tiles = sec.querySelector(".tiles"), btn = sec.querySelector('[data-act="sort"]');
+  sec.classList.toggle("sorting", on);
+  btn.textContent = on ? "Xong" : "Sắp xếp";
+  btn.setAttribute("aria-pressed", on);
+  sec._sortable?.destroy(); sec._sortable = null;
+  if (!on) return;
+  loadSortable().then(Sortable => {
+    if (!sec.classList.contains("sorting") || sec._sortable) return;
+    sec._sortable = Sortable.create(tiles, { animation: 150, handle: ".grip", draggable: ".tile", forceFallback: true, fallbackOnBody: true, onEnd: () => persistOrder(tiles) });
+  }).catch(err => alert(err.message + ". Vẫn đổi chỗ được bằng phím mũi tên."));
+}
+
+// Về thứ tự mặc định (theo tên) ngay tại chỗ, vẫn ở chế độ sắp xếp
+function resetGroup(sec) {
+  const tiles = sec.querySelector(".tiles"), g = tiles.dataset.group;
+  const byUrl = new Map([...tiles.children].map(c => [c.dataset.url, c]));
+  sortRows(lastApps.filter(a => a.group === g)).forEach(a => byUrl.has(a.url) && tiles.append(byUrl.get(a.url)));
+  const o = loadOrder(); delete o[g]; saveOrder(o);
+}
+
+list.addEventListener("click", e => {
+  const btn = e.target.closest(".gbtn");
+  if (btn) {
+    const sec = btn.closest(".group");
+    btn.dataset.act === "sort" ? setSorting(sec, !sec.classList.contains("sorting")) : resetGroup(sec);
+    return;
+  }
+  // Đang sắp xếp thì bấm ô không mở app
+  if (e.target.closest(".sorting .tile")) e.preventDefault();
+});
+// Bàn phím: mũi tên lên/trái lùi 1 ô, xuống/phải tiến 1 ô
+list.addEventListener("keydown", e => {
+  const tile = e.target.closest(".sorting .tile");
+  if (!tile) return;
+  const back = e.key === "ArrowUp" || e.key === "ArrowLeft", fwd = e.key === "ArrowDown" || e.key === "ArrowRight";
+  if (!back && !fwd) return;
+  e.preventDefault();
+  const sib = back ? tile.previousElementSibling : tile.nextElementSibling;
+  if (!sib) return;
+  back ? sib.before(tile) : sib.after(tile);
+  tile.focus();
+  persistOrder(tile.parentElement);
+});
 
 Promise.all([loadTab(TABS.apps), loadTab(TABS.groups)])
   .then(([catalog, groups]) => {
